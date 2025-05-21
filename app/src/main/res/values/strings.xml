@@ -1,3 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ImageStitcher</string>
+    <string name="app_name">拼长图</string>
+    <string name="select_images">选择图片</string>
+    <string name="stitch_images">拼接图片</string>
+    <string name="preview_stitched_image">预览长图</string>
+    <string name="preview_selected_images">预览已选图片</string>
+    <string name="remove_image">移除图片</string>
+    <string name="stitching_in_progress">正在拼接...</string>
+    <string name="save_successful">长图已保存到相册</string>
+    <string name="save_failed">保存长图失败</string>
+    <string name="no_images_selected">请先选择图片</string>
+    <string name="at_least_two_images">请至少选择两张图片进行拼接</string>
+    <string name="permissions_granted">存储权限已授予</string>
+    <string name="permissions_denied">存储权限被拒绝，无法保存图片</string>
+    <string name="unable_to_load_image">部分图片加载失败，请重试</string>
+    <string name="no_stitchable_images">没有可拼接的图片</string>
+    <string name="operation_failed">操作失败: %1$s</string>
+    <string name="close">关闭</string>
+    <string name="stitched_image_preview">拼接图片预览</string>
+    <string name="selected_images_title">已选择的图片</string>
+    <string name="unknown_file">未知文件</string>
+
+    <string name="no_images_to_preview">没有图片可以预览</string>
+    <string name="error_loading_image">无法加载图片: %1$s</string>
+    <string name="error_stitching_or_saving">拼接或保存图片时出错: %1$s</string>
+    <string name="error_closing_stream">关闭流失败: %1$s</string>
 </resources>

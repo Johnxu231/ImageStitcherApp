@@ -40,18 +40,18 @@ class MainActivity : AppCompatActivity() {
     private val selectedImageUris = mutableListOf<Uri>()
     private lateinit var imageAdapter: ImageAdapter
 
-    // Permission request launcher
+    // 权限请求启动器
     private val requestPermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             val granted = permissions.entries.all { it.value }
             if (granted) {
-                Toast.makeText(this, "存储权限已授予", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.permissions_granted), Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "存储权限被拒绝，无法保存图片", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.permissions_denied), Toast.LENGTH_LONG).show()
             }
         }
 
-    // Image picker launcher
+    // 图片选择启动器
     private val pickImagesLauncher =
         registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri>? ->
             uris?.let {
@@ -73,22 +73,25 @@ class MainActivity : AppCompatActivity() {
             pickImages()
         }
 
-        // Preview button click listener (Launches ImagePreviewActivity from main button)
         binding.btnPreviewImages.setOnClickListener {
             if (selectedImageUris.isEmpty()) {
-                Toast.makeText(this, "请先选择图片", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.no_images_selected), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            // Launch ImagePreviewActivity to full-screen preview starting from the first image
-            launchPreviewActivity(0) // Start from position 0 by default
+            // 启动 ImagePreviewActivity 来全屏预览
+            val intent = Intent(this, ImagePreviewActivity::class.java).apply {
+                // 将 ArrayList<Uri> 放入 Intent
+                putParcelableArrayListExtra(ImagePreviewActivity.EXTRA_IMAGE_URIS, ArrayList(selectedImageUris))
+            }
+            startActivity(intent)
         }
 
         binding.btnStitchImages.setOnClickListener {
             if (selectedImageUris.size < 2) {
-                Toast.makeText(this, "请至少选择两张图片进行拼接", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.at_least_two_images), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            stitchImages(stitchForSaving = true)
+            stitchImages(stitchForSaving = true) // 调用拼接并保存的方法
         }
     }
 
@@ -127,6 +130,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            // Corrected line
             override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
                 super.clearView(recyclerView, viewHolder)
                 viewHolder.itemView.alpha = 1.0f
@@ -135,10 +139,9 @@ class MainActivity : AppCompatActivity() {
         val itemTouchHelper = ItemTouchHelper(itemTouchHelperCallback)
         itemTouchHelper.attachToRecyclerView(binding.recyclerViewImages)
     }
-
     private fun launchPreviewActivity(startPosition: Int) {
         if (selectedImageUris.isEmpty()) {
-            Toast.makeText(this, "没有图片可以预览", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.no_images_to_preview), Toast.LENGTH_SHORT).show()
             return
         }
         val intent = Intent(this, ImagePreviewActivity::class.java).apply {
@@ -178,6 +181,7 @@ class MainActivity : AppCompatActivity() {
         pickImagesLauncher.launch("image/*")
     }
 
+    // 核心拼接逻辑，可选择是否保存到文件
     private fun stitchImages(stitchForSaving: Boolean) {
         binding.progressBar.visibility = View.VISIBLE
         binding.btnStitchImages.isEnabled = false
@@ -191,6 +195,7 @@ class MainActivity : AppCompatActivity() {
                 var maxWidth = 0
                 var totalHeight = 0
 
+                // 1. 加载所有图片并计算总尺寸
                 for (uri in selectedImageUris) {
                     val bitmap = contentResolver.openInputStream(uri)?.use { inputStream ->
                         BitmapFactory.decodeStream(inputStream)
@@ -200,9 +205,9 @@ class MainActivity : AppCompatActivity() {
                         maxWidth = maxOf(maxWidth, bitmap.width)
                         totalHeight += bitmap.height
                     } else {
-                        Log.e("ImageStitcher", "无法加载图片: $uri")
+                        Log.e("ImageStitcher", getString(R.string.error_loading_image, uri.toString()))
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "部分图片加载失败，请重试", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@MainActivity, getString(R.string.unable_to_load_image), Toast.LENGTH_SHORT).show()
                         }
                         restoreUiState()
                         bitmaps.forEach { it.recycle() }
@@ -212,16 +217,18 @@ class MainActivity : AppCompatActivity() {
 
                 if (bitmaps.isEmpty()) {
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, "没有可拼接的图片", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, getString(R.string.no_stitchable_images), Toast.LENGTH_SHORT).show()
                     }
                     restoreUiState()
                     return@launch
                 }
 
+                // 2. 创建新的拼接位图
                 stitchedBitmap = Bitmap.createBitmap(maxWidth, totalHeight, Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(stitchedBitmap)
                 var currentY = 0
 
+                // 3. 将所有图片绘制到拼接位图上
                 for (bitmap in bitmaps) {
                     val scaledBitmap = if (bitmap.width != maxWidth) {
                         Bitmap.createScaledBitmap(bitmap, maxWidth, (bitmap.height * maxWidth.toFloat() / bitmap.width).toInt(), true)
@@ -240,20 +247,20 @@ class MainActivity : AppCompatActivity() {
                     if (stitchForSaving) {
                         val savedUri = saveBitmapToGallery(stitchedBitmap!!)
                         if (savedUri != null) {
-                            Toast.makeText(this@MainActivity, "长图已保存到相册", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@MainActivity, getString(R.string.save_successful), Toast.LENGTH_LONG).show()
                             selectedImageUris.clear()
                             imageAdapter.notifyDataSetChanged()
                         } else {
-                            Toast.makeText(this@MainActivity, "保存长图失败", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@MainActivity, getString(R.string.save_failed), Toast.LENGTH_SHORT).show()
                         }
                     }
                     restoreUiState()
                 }
 
             } catch (e: Exception) {
-                Log.e("ImageStitcher", "拼接或保存图片时出错: ${e.message}", e)
+                Log.e("ImageStitcher", getString(R.string.error_stitching_or_saving, e.message ?: "未知错误"), e)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "操作失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.operation_failed, e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
                     restoreUiState()
                 }
             } finally {
@@ -307,7 +314,7 @@ class MainActivity : AppCompatActivity() {
             }
             return uri
         } catch (e: IOException) {
-            Log.e("SaveBitmap", "保存失败: ${e.message}", e)
+            Log.e("SaveBitmap", getString(R.string.error_stitching_or_saving, e.message ?: "未知错误"), e)
             uri?.let {
                 application.contentResolver.delete(it, null, null)
             }
@@ -316,7 +323,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 outputStream?.close()
             } catch (e: IOException) {
-                Log.e("SaveBitmap", "关闭流失败: ${e.message}", e)
+                Log.e("SaveBitmap", getString(R.string.error_closing_stream, e.message ?: "未知错误"), e)
             }
         }
     }

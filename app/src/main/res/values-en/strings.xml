@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ImageStitcher</string>
+    <string name="select_images">Select Images</string>
+    <string name="stitch_images">Stitch Images</string>
+    <string name="preview_stitched_image">Preview Stitched Image</string>
+    <string name="preview_selected_images">Preview Selected Images</string>
+    <string name="remove_image">Remove Image</string>
+    <string name="stitching_in_progress">Stitching in progress...</string>
+    <string name="save_successful">Long image saved to gallery</string>
+    <string name="save_failed">Failed to save long image</string>
+    <string name="no_images_selected">Please select images first</string>
+    <string name="at_least_two_images">Please select at least two images to stitch</string>
+    <string name="permissions_granted">Storage permissions granted</string>
+    <string name="permissions_denied">Storage permissions denied, cannot save image</string>
+    <string name="unable_to_load_image">Failed to load some images, please retry</string>
+    <string name="no_stitchable_images">No images available for stitching</string>
+    <string name="operation_failed">Operation failed: %1$s</string>
+    <string name="close">Close</string>
+    <string name="stitched_image_preview">Stitched Image Preview</string>
+    <string name="selected_images_title">Selected Images</string>
+
+    <string name="no_images_to_preview">No images to preview</string>
+    <string name="error_loading_image">Failed to load image: %1$s</string>
+    <string name="error_stitching_or_saving">Error stitching or saving image: %1$s</string>
+    <string name="error_closing_stream">Failed to close stream: %1$s</string>
+
+</resources>
