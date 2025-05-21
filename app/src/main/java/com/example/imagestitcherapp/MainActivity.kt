@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
     private val selectedImageUris = mutableListOf<Uri>()
     private lateinit var imageAdapter: ImageAdapter
 
-    // 权限请求启动器
+    // Permission request launcher
     private val requestPermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             val granted = permissions.entries.all { it.value }
@@ -51,11 +51,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    // 图片选择启动器
+    // Image picker launcher
     private val pickImagesLauncher =
         registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri>? ->
             uris?.let {
-                selectedImageUris.clear() // 清空之前选择的，或者 append 都可以
+                selectedImageUris.clear()
                 selectedImageUris.addAll(it)
                 imageAdapter.notifyDataSetChanged()
             }
@@ -73,23 +73,37 @@ class MainActivity : AppCompatActivity() {
             pickImages()
         }
 
+        // Preview button click listener (Launches ImagePreviewActivity from main button)
+        binding.btnPreviewImages.setOnClickListener {
+            if (selectedImageUris.isEmpty()) {
+                Toast.makeText(this, "请先选择图片", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            // Launch ImagePreviewActivity to full-screen preview starting from the first image
+            launchPreviewActivity(0) // Start from position 0 by default
+        }
+
         binding.btnStitchImages.setOnClickListener {
             if (selectedImageUris.size < 2) {
                 Toast.makeText(this, "请至少选择两张图片进行拼接", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            stitchImages()
+            stitchImages(stitchForSaving = true)
         }
     }
 
     private fun setupRecyclerView() {
-        imageAdapter = ImageAdapter(selectedImageUris)
+        // Initialize ImageAdapter with a click listener
+        imageAdapter = ImageAdapter(selectedImageUris) { position ->
+            // This lambda is called when an item in the RecyclerView is clicked
+            launchPreviewActivity(position)
+        }
         binding.recyclerViewImages.layoutManager = LinearLayoutManager(this)
         binding.recyclerViewImages.adapter = imageAdapter
 
-        // 添加拖拽排序功能
         val itemTouchHelperCallback = object : ItemTouchHelper.SimpleCallback(
-            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN,
+            0
         ) {
             override fun onMove(
                 recyclerView: RecyclerView,
@@ -103,30 +117,52 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                // 不处理滑动删除
+                // Not used for swiping
+            }
+
+            override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(viewHolder, actionState)
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+                    viewHolder?.itemView?.alpha = 0.5f
+                }
+            }
+
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                viewHolder.itemView.alpha = 1.0f
             }
         }
         val itemTouchHelper = ItemTouchHelper(itemTouchHelperCallback)
         itemTouchHelper.attachToRecyclerView(binding.recyclerViewImages)
     }
 
+    private fun launchPreviewActivity(startPosition: Int) {
+        if (selectedImageUris.isEmpty()) {
+            Toast.makeText(this, "没有图片可以预览", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = Intent(this, ImagePreviewActivity::class.java).apply {
+            putParcelableArrayListExtra(ImagePreviewActivity.EXTRA_IMAGE_URIS, ArrayList(selectedImageUris))
+            putExtra(ImagePreviewActivity.EXTRA_START_POSITION, startPosition) // Pass starting position
+        }
+        startActivity(intent)
+    }
+
     private fun checkAndRequestPermissions() {
         val permissionsToRequest = mutableListOf<String>()
 
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) { // Android 9 及以下
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
         }
-        // Android 10 (Q) 及更高版本，READ_EXTERNAL_STORAGE 已足够，WRITE_EXTERNAL_STORAGE 几乎不再需要
-        // Android 13 (TIRAMISU) 及更高版本，READ_MEDIA_IMAGES 优先于 READ_EXTERNAL_STORAGE
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES)
             }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // Android 10, 11, 12
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -139,14 +175,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun pickImages() {
-        // "image/*" 允许选择所有图片类型
-        // ActivityResultContracts.GetMultipleContents() 会自动处理文件 URI 权限
         pickImagesLauncher.launch("image/*")
     }
 
-    private fun stitchImages() {
+    private fun stitchImages(stitchForSaving: Boolean) {
         binding.progressBar.visibility = View.VISIBLE
         binding.btnStitchImages.isEnabled = false
+        binding.btnPreviewImages.isEnabled = false
         binding.btnSelectImages.isEnabled = false
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -156,7 +191,6 @@ class MainActivity : AppCompatActivity() {
                 var maxWidth = 0
                 var totalHeight = 0
 
-                // 1. 加载所有图片并计算总尺寸
                 for (uri in selectedImageUris) {
                     val bitmap = contentResolver.openInputStream(uri)?.use { inputStream ->
                         BitmapFactory.decodeStream(inputStream)
@@ -170,56 +204,71 @@ class MainActivity : AppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             Toast.makeText(this@MainActivity, "部分图片加载失败，请重试", Toast.LENGTH_SHORT).show()
                         }
+                        restoreUiState()
+                        bitmaps.forEach { it.recycle() }
                         return@launch
                     }
                 }
 
-                // 2. 创建新的拼接位图
+                if (bitmaps.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "没有可拼接的图片", Toast.LENGTH_SHORT).show()
+                    }
+                    restoreUiState()
+                    return@launch
+                }
+
                 stitchedBitmap = Bitmap.createBitmap(maxWidth, totalHeight, Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(stitchedBitmap)
                 var currentY = 0
 
-                // 3. 将所有图片绘制到拼接位图上
                 for (bitmap in bitmaps) {
-                    // 如果图片宽度与最大宽度不一致，可以居中或拉伸
-                    val left = (maxWidth - bitmap.width) / 2
-                    canvas.drawBitmap(bitmap, left.toFloat(), currentY.toFloat(), null)
-                    currentY += bitmap.height
-                    bitmap.recycle() // 及时回收源位图
+                    val scaledBitmap = if (bitmap.width != maxWidth) {
+                        Bitmap.createScaledBitmap(bitmap, maxWidth, (bitmap.height * maxWidth.toFloat() / bitmap.width).toInt(), true)
+                    } else {
+                        bitmap
+                    }
+                    canvas.drawBitmap(scaledBitmap, 0f, currentY.toFloat(), null)
+                    currentY += scaledBitmap.height
+                    if (scaledBitmap != bitmap) {
+                        bitmap.recycle()
+                    }
+                    scaledBitmap.recycle()
                 }
 
-                // 4. 保存拼接后的图片
-                val savedUri = saveBitmapToGallery(stitchedBitmap)
-
                 withContext(Dispatchers.Main) {
-                    binding.progressBar.visibility = View.GONE
-                    if (savedUri != null) {
-                        Toast.makeText(this@MainActivity, "长图已保存到相册", Toast.LENGTH_LONG).show()
-                        // 可以在这里显示拼接后的图片，例如：
-                        // binding.imageViewResult.setImageURI(savedUri)
-                        // binding.imageViewResult.visibility = View.VISIBLE
-                        selectedImageUris.clear() // 清空列表
-                        imageAdapter.notifyDataSetChanged()
-                    } else {
-                        Toast.makeText(this@MainActivity, "保存长图失败", Toast.LENGTH_SHORT).show()
+                    if (stitchForSaving) {
+                        val savedUri = saveBitmapToGallery(stitchedBitmap!!)
+                        if (savedUri != null) {
+                            Toast.makeText(this@MainActivity, "长图已保存到相册", Toast.LENGTH_LONG).show()
+                            selectedImageUris.clear()
+                            imageAdapter.notifyDataSetChanged()
+                        } else {
+                            Toast.makeText(this@MainActivity, "保存长图失败", Toast.LENGTH_SHORT).show()
+                        }
                     }
-                    binding.btnStitchImages.isEnabled = true
-                    binding.btnSelectImages.isEnabled = true
+                    restoreUiState()
                 }
 
             } catch (e: Exception) {
                 Log.e("ImageStitcher", "拼接或保存图片时出错: ${e.message}", e)
                 withContext(Dispatchers.Main) {
-                    binding.progressBar.visibility = View.GONE
-                    Toast.makeText(this@MainActivity, "拼接失败: ${e.message}", Toast.LENGTH_LONG).show()
-                    binding.btnStitchImages.isEnabled = true
-                    binding.btnSelectImages.isEnabled = true
+                    Toast.makeText(this@MainActivity, "操作失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    restoreUiState()
                 }
             } finally {
-                stitchedBitmap?.recycle() // 确保最终回收拼接位图
+                stitchedBitmap?.recycle()
             }
         }
     }
+
+    private fun restoreUiState() {
+        binding.btnStitchImages.isEnabled = true
+        binding.btnPreviewImages.isEnabled = true
+        binding.btnSelectImages.isEnabled = true
+        binding.progressBar.visibility = View.GONE
+    }
+
 
     private fun saveBitmapToGallery(bitmap: Bitmap): Uri? {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -228,10 +277,9 @@ class MainActivity : AppCompatActivity() {
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            // 对于 Android Q (API 29) 及更高版本，使用 MediaStore.MediaColumns.RELATIVE_PATH
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/StitchedImages")
-                put(MediaStore.Images.Media.IS_PENDING, 1) // 标记为待处理
+                put(MediaStore.Images.Media.IS_PENDING, 1)
             }
         }
 
@@ -254,13 +302,12 @@ class MainActivity : AppCompatActivity() {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 contentValues.clear()
-                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0) // 取消待处理标记
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
                 contentResolver.update(uri, contentValues, null, null)
             }
             return uri
         } catch (e: IOException) {
             Log.e("SaveBitmap", "保存失败: ${e.message}", e)
-            // 如果出错，删除部分创建的 MediaStore 记录
             uri?.let {
                 application.contentResolver.delete(it, null, null)
             }

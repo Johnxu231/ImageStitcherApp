@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp") // If using KSP
+    id("kotlin-kapt") // 如果使用 annotationProcessor 用于 Glide
 }
 
 android {
@@ -39,6 +40,7 @@ android {
     buildFeatures {
         viewBinding = true // 启用 View Binding，方便访问视图
     }
+
 }
 
 dependencies {
