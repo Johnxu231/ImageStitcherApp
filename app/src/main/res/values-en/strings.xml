@@ -6,7 +6,7 @@
     <string name="preview_stitched_image">Preview Stitched Image</string>
     <string name="preview_selected_images">Preview Selected Images</string>
     <string name="remove_image">Remove Image</string>
-    <string name="stitching_in_progress">Stitching in progress...</string>
+    <string name="stitching_in_progress">Stitching in progress</string>
     <string name="save_successful">Long image saved to gallery</string>
     <string name="save_failed">Failed to save long image</string>
     <string name="no_images_selected">Please select images first</string>

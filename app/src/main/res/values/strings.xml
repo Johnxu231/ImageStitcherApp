@@ -6,7 +6,7 @@
     <string name="preview_stitched_image">预览长图</string>
     <string name="preview_selected_images">预览已选图片</string>
     <string name="remove_image">移除图片</string>
-    <string name="stitching_in_progress">正在拼接...</string>
+    <string name="stitching_in_progress">正在拼接</string>
     <string name="save_successful">长图已保存到相册</string>
     <string name="save_failed">保存长图失败</string>
     <string name="no_images_selected">请先选择图片</string>

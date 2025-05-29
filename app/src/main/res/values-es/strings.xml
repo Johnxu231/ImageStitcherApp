@@ -6,7 +6,7 @@
     <string name="preview_stitched_image">Vista Previa de Imagen Unida</string>
     <string name="preview_selected_images">Vista Previa de Imágenes Seleccionadas</string>
     <string name="remove_image">Eliminar Imagen</string>
-    <string name="stitching_in_progress">Uniendo imágenes...</string>
+    <string name="stitching_in_progress">Uniendo imágenes</string>
     <string name="save_successful">Imagen larga guardada en la galería</string>
     <string name="save_failed">Error al guardar la imagen larga</string>
     <string name="no_images_selected">Por favor, selecciona imágenes primero</string>
