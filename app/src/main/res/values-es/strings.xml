@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Coser imágenes</string>
+    <string name="select_images">Seleccionar Imágenes</string>
+    <string name="stitch_images">Unir Imágenes</string>
+    <string name="preview_stitched_image">Vista Previa de Imagen Unida</string>
+    <string name="preview_selected_images">Vista Previa de Imágenes Seleccionadas</string>
+    <string name="remove_image">Eliminar Imagen</string>
+    <string name="stitching_in_progress">Uniendo imágenes...</string>
+    <string name="save_successful">Imagen larga guardada en la galería</string>
+    <string name="save_failed">Error al guardar la imagen larga</string>
+    <string name="no_images_selected">Por favor, selecciona imágenes primero</string>
+    <string name="at_least_two_images">Por favor, selecciona al menos dos imágenes para unir</string>
+    <string name="permissions_granted">Permisos de almacenamiento concedidos</string>
+    <string name="permissions_denied">Permisos de almacenamiento denegados, no se puede guardar la imagen</string>
+    <string name="unable_to_load_image">Error al cargar algunas imágenes, por favor inténtalo de nuevo</string>
+    <string name="no_stitchable_images">No hay imágenes disponibles para unir</string>
+    <string name="operation_failed">Operación fallida: %1$s</string>
+    <string name="close">Cerrar</string>
+    <string name="stitched_image_preview">Vista Previa de Imagen Unida</string>
+    <string name="selected_images_title">Imágenes Seleccionadas</string>
+    <string name="unknown_file">Archivo Desconocido</string>
+    <string name="no_images_to_preview">No hay imágenes para previsualizar</string>
+    <string name="error_loading_image">Error al cargar la imagen: %1$s</string>
+    <string name="error_stitching_or_saving">Error al unir o guardar la imagen: %1$s</string>
+    <string name="error_closing_stream">Error al cerrar el flujo: %1$s</string>
+    <string name="no_new_images_added">No se han añadido nuevas imágenes</string>
+
+</resources>
