@@ -17,12 +17,12 @@
     <string name="no_stitchable_images">No images available for stitching</string>
     <string name="operation_failed">Operation failed: %1$s</string>
     <string name="close">Close</string>
+    <string name="unknown_file">Unknown File</string>
     <string name="stitched_image_preview">Stitched Image Preview</string>
     <string name="selected_images_title">Selected Images</string>
-
     <string name="no_images_to_preview">No images to preview</string>
     <string name="error_loading_image">Failed to load image: %1$s</string>
     <string name="error_stitching_or_saving">Error stitching or saving image: %1$s</string>
     <string name="error_closing_stream">Failed to close stream: %1$s</string>
-
+    <string name="no_new_images_added">No new images were added</string>
 </resources>

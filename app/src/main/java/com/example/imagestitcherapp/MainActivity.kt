@@ -33,12 +33,17 @@ import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt // 导入 roundToInt
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private val selectedImageUris = mutableListOf<Uri>()
+    private val selectedImageUris = mutableListOf<Uri>() // 使用 mutableListOf 而不是 ArrayList
     private lateinit var imageAdapter: ImageAdapter
+
+    // Define a target width for downsampling. This could be screen width or a fixed value.
+    // 假设我们希望拼接后的图片的宽度不超过屏幕宽度，或者一个合理的最大值，例如 1080px
+    private val TARGET_STITCH_WIDTH = 1080 // You can adjust this value
 
     // 权限请求启动器
     private val requestPermissionsLauncher =
@@ -55,9 +60,15 @@ class MainActivity : AppCompatActivity() {
     private val pickImagesLauncher =
         registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri>? ->
             uris?.let {
-                selectedImageUris.clear()
-                selectedImageUris.addAll(it)
-                imageAdapter.notifyDataSetChanged()
+                val newUrisToAdd = it.filter { newUri -> !selectedImageUris.contains(newUri) }
+                val oldSize = selectedImageUris.size
+                selectedImageUris.addAll(newUrisToAdd)
+
+                if (newUrisToAdd.isNotEmpty()) {
+                    imageAdapter.notifyItemRangeInserted(oldSize, newUrisToAdd.size)
+                } else {
+                    Toast.makeText(this, getString(R.string.no_new_images_added), Toast.LENGTH_SHORT).show() // This string should also be extracted
+                }
             }
         }
 
@@ -91,14 +102,12 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, getString(R.string.at_least_two_images), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            stitchImages(stitchForSaving = true) // 调用拼接并保存的方法
+            stitchImages(stitchForSaving = true)
         }
     }
 
     private fun setupRecyclerView() {
-        // Initialize ImageAdapter with a click listener
         imageAdapter = ImageAdapter(selectedImageUris) { position ->
-            // This lambda is called when an item in the RecyclerView is clicked
             launchPreviewActivity(position)
         }
         binding.recyclerViewImages.layoutManager = LinearLayoutManager(this)
@@ -130,7 +139,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Corrected line
             override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
                 super.clearView(recyclerView, viewHolder)
                 viewHolder.itemView.alpha = 1.0f
@@ -139,6 +147,7 @@ class MainActivity : AppCompatActivity() {
         val itemTouchHelper = ItemTouchHelper(itemTouchHelperCallback)
         itemTouchHelper.attachToRecyclerView(binding.recyclerViewImages)
     }
+
     private fun launchPreviewActivity(startPosition: Int) {
         if (selectedImageUris.isEmpty()) {
             Toast.makeText(this, getString(R.string.no_images_to_preview), Toast.LENGTH_SHORT).show()
@@ -146,7 +155,7 @@ class MainActivity : AppCompatActivity() {
         }
         val intent = Intent(this, ImagePreviewActivity::class.java).apply {
             putParcelableArrayListExtra(ImagePreviewActivity.EXTRA_IMAGE_URIS, ArrayList(selectedImageUris))
-            putExtra(ImagePreviewActivity.EXTRA_START_POSITION, startPosition) // Pass starting position
+            putExtra(ImagePreviewActivity.EXTRA_START_POSITION, startPosition)
         }
         startActivity(intent)
     }
@@ -165,6 +174,10 @@ class MainActivity : AppCompatActivity() {
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES)
             }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) // Consider video if needed
+                != PackageManager.PERMISSION_GRANTED) {
+                // permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
+            }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -181,6 +194,16 @@ class MainActivity : AppCompatActivity() {
         pickImagesLauncher.launch("image/*")
     }
 
+    // Data class to hold calculated image dimensions and inSampleSize
+    private data class ImageDecodeInfo(
+        val uri: Uri,
+        val originalWidth: Int,
+        val originalHeight: Int,
+        val inSampleSize: Int,
+        val sampledWidth: Int,
+        val sampledHeight: Int
+    )
+
     // 核心拼接逻辑，可选择是否保存到文件
     private fun stitchImages(stitchForSaving: Boolean) {
         binding.progressBar.visibility = View.VISIBLE
@@ -191,31 +214,52 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             var stitchedBitmap: Bitmap? = null
             try {
-                val bitmaps = mutableListOf<Bitmap>()
-                var maxWidth = 0
-                var totalHeight = 0
+                val imageDecodeInfoList = mutableListOf<ImageDecodeInfo>()
+                var maxWidthAfterSampling = 0
+                var totalHeightAfterSampling = 0
 
-                // 1. 加载所有图片并计算总尺寸
+                // Phase 1: Get original dimensions and calculate inSampleSize for each image
                 for (uri in selectedImageUris) {
-                    val bitmap = contentResolver.openInputStream(uri)?.use { inputStream ->
-                        BitmapFactory.decodeStream(inputStream)
+                    val options = BitmapFactory.Options().apply {
+                        inJustDecodeBounds = true // Decode only bounds, not pixels
                     }
-                    if (bitmap != null) {
-                        bitmaps.add(bitmap)
-                        maxWidth = maxOf(maxWidth, bitmap.width)
-                        totalHeight += bitmap.height
-                    } else {
+                    contentResolver.openInputStream(uri)?.use { inputStream ->
+                        BitmapFactory.decodeStream(inputStream, null, options)
+                    }
+
+                    val originalWidth = options.outWidth
+                    val originalHeight = options.outHeight
+
+                    if (originalWidth == 0 || originalHeight == 0) {
                         Log.e("ImageStitcher", getString(R.string.error_loading_image, uri.toString()))
                         withContext(Dispatchers.Main) {
                             Toast.makeText(this@MainActivity, getString(R.string.unable_to_load_image), Toast.LENGTH_SHORT).show()
                         }
                         restoreUiState()
-                        bitmaps.forEach { it.recycle() }
+                        // Ensure no partial state is left
+                        stitchedBitmap?.recycle()
                         return@launch
                     }
+
+                    // Calculate inSampleSize
+                    var inSampleSize = 1
+                    if (originalWidth > TARGET_STITCH_WIDTH) {
+                        inSampleSize = (originalWidth.toFloat() / TARGET_STITCH_WIDTH.toFloat()).roundToInt()
+                    }
+                    inSampleSize = inSampleSize.coerceAtLeast(1) // Ensure inSampleSize is at least 1
+
+                    // Calculate sampled dimensions
+                    val sampledWidth = originalWidth / inSampleSize
+                    val sampledHeight = originalHeight / inSampleSize
+
+                    imageDecodeInfoList.add(ImageDecodeInfo(uri, originalWidth, originalHeight, inSampleSize, sampledWidth, sampledHeight))
+
+                    // Update max width and total height based on sampled dimensions
+                    maxWidthAfterSampling = maxOf(maxWidthAfterSampling, sampledWidth)
+                    totalHeightAfterSampling += sampledHeight
                 }
 
-                if (bitmaps.isEmpty()) {
+                if (imageDecodeInfoList.isEmpty()) {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(this@MainActivity, getString(R.string.no_stitchable_images), Toast.LENGTH_SHORT).show()
                     }
@@ -223,24 +267,47 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                // 2. 创建新的拼接位图
-                stitchedBitmap = Bitmap.createBitmap(maxWidth, totalHeight, Bitmap.Config.ARGB_8888)
+                // Phase 2: Create the stitched bitmap and draw sampled images
+                stitchedBitmap = Bitmap.createBitmap(maxWidthAfterSampling, totalHeightAfterSampling, Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(stitchedBitmap)
                 var currentY = 0
 
-                // 3. 将所有图片绘制到拼接位图上
-                for (bitmap in bitmaps) {
-                    val scaledBitmap = if (bitmap.width != maxWidth) {
-                        Bitmap.createScaledBitmap(bitmap, maxWidth, (bitmap.height * maxWidth.toFloat() / bitmap.width).toInt(), true)
+                for (info in imageDecodeInfoList) {
+                    val decodeOptions = BitmapFactory.Options().apply {
+                        inSampleSize = info.inSampleSize // Use the pre-calculated inSampleSize
+                    }
+
+                    // Re-open InputStream for actual decoding
+                    val bitmap = contentResolver.openInputStream(info.uri)?.use { inputStream ->
+                        BitmapFactory.decodeStream(inputStream, null, decodeOptions)
+                    }
+
+                    if (bitmap != null) {
+                        // Scale to the common maximum width after sampling, maintaining aspect ratio
+                        val finalScaledBitmap = if (bitmap.width != maxWidthAfterSampling) {
+                            val newHeight = (bitmap.height * (maxWidthAfterSampling.toFloat() / bitmap.width)).roundToInt()
+                            Bitmap.createScaledBitmap(bitmap, maxWidthAfterSampling, newHeight, true)
+                        } else {
+                            bitmap
+                        }
+
+                        canvas.drawBitmap(finalScaledBitmap, 0f, currentY.toFloat(), null)
+                        currentY += finalScaledBitmap.height
+
+                        // Recycle bitmaps
+                        if (finalScaledBitmap != bitmap) { // If scaling created a new bitmap, recycle the original decoded one
+                            bitmap.recycle()
+                        }
+                        finalScaledBitmap.recycle() // Always recycle the bitmap used for drawing
                     } else {
-                        bitmap
+                        Log.e("ImageStitcher", getString(R.string.error_loading_image, info.uri.toString()))
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, getString(R.string.unable_to_load_image), Toast.LENGTH_SHORT).show()
+                        }
+                        restoreUiState()
+                        stitchedBitmap?.recycle() // Also recycle any partially created stitched bitmap
+                        return@launch
                     }
-                    canvas.drawBitmap(scaledBitmap, 0f, currentY.toFloat(), null)
-                    currentY += scaledBitmap.height
-                    if (scaledBitmap != bitmap) {
-                        bitmap.recycle()
-                    }
-                    scaledBitmap.recycle()
                 }
 
                 withContext(Dispatchers.Main) {
@@ -258,13 +325,13 @@ class MainActivity : AppCompatActivity() {
                 }
 
             } catch (e: Exception) {
-                Log.e("ImageStitcher", getString(R.string.error_stitching_or_saving, e.message ?: "未知错误"), e)
+                Log.e("ImageStitcher", getString(R.string.error_stitching_or_saving, e.message ?: "Unknown error"), e)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, getString(R.string.operation_failed, e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.operation_failed, e.message ?: "Unknown error"), Toast.LENGTH_LONG).show()
                     restoreUiState()
                 }
             } finally {
-                stitchedBitmap?.recycle()
+                stitchedBitmap?.recycle() // Ensure stitchedBitmap is recycled even on error
             }
         }
     }
@@ -314,7 +381,7 @@ class MainActivity : AppCompatActivity() {
             }
             return uri
         } catch (e: IOException) {
-            Log.e("SaveBitmap", getString(R.string.error_stitching_or_saving, e.message ?: "未知错误"), e)
+            Log.e("SaveBitmap", getString(R.string.error_stitching_or_saving, e.message ?: "Unknown error"), e)
             uri?.let {
                 application.contentResolver.delete(it, null, null)
             }
@@ -323,7 +390,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 outputStream?.close()
             } catch (e: IOException) {
-                Log.e("SaveBitmap", getString(R.string.error_closing_stream, e.message ?: "未知错误"), e)
+                Log.e("SaveBitmap", getString(R.string.error_closing_stream, e.message ?: "Unknown error"), e)
             }
         }
     }

@@ -20,7 +20,7 @@
     <string name="stitched_image_preview">拼接图片预览</string>
     <string name="selected_images_title">已选择的图片</string>
     <string name="unknown_file">未知文件</string>
-
+    <string name="no_new_images_added">没有新图片被添加</string>
     <string name="no_images_to_preview">没有图片可以预览</string>
     <string name="error_loading_image">无法加载图片: %1$s</string>
     <string name="error_stitching_or_saving">拼接或保存图片时出错: %1$s</string>
